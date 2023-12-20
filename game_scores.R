@@ -71,4 +71,4 @@ game_scores <- game_scores %>%
   filter(!is.na(Gm))
 
 #save csv
-write_csv(game_scores, "C:/Users/ajpat/Downloads/R Scripts/baseball/NewElo/MadeFiles/game_scores.csv")
+write_csv(game_scores, "game_scores.csv")
