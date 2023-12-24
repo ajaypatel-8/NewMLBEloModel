@@ -117,7 +117,6 @@ roll_statlines <- roll_statlines %>%
   select(-avg_kbb) %>%
   mutate(weighted_roll_kbb = (roll_kbb  * mean(innings_pitched)) / 4.8)
 
-#FIX THIS -> currently joins team and opponent /creating excess rows
 #join name, team, team_id to roll_statlines
 team_games <- sp_probables %>% select(game_pk, fullName,id, team, team_id)
 

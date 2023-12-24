@@ -184,7 +184,7 @@ final.elos(elo_mod)
 summary(elo_mod)
 
 #ml accuracy of model -> about 56.4%
-(7734+2328) / (17848) 
+(7738+2327) / (17848) 
 
 #save model object
 saveRDS(elo_mod, "elo_model.RDS")
