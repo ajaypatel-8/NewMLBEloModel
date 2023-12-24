@@ -25,7 +25,7 @@ model_predictions.R -> R script used to make predictions for a day of games.
 
 pitcher_logs.R -> R script used to compile pitcher statlines going back to 2016.
 
-predictions.png -> GT output of model's predictions for a day.
+predictions.png -> GT output of model's predictions for a day (Note the example should say 10/3 not 9/8 as it currently does).
 
 sp_ids.RDS -> R object of starting pitcher ids.
 
