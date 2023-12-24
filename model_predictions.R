@@ -192,7 +192,8 @@ for(pitcher in pitchers) {
   #if there's not adjustment, default value
   if(nrow(data) == 0) {
     player_id <- pitcher
-    sp_elo_adj <- 0.01
+    #25th percentile
+    sp_elo_adj <- -4.88
     data1 <- data.frame(player_id, sp_elo_adj)
     
     today_adj <- rbind(today_adj, data1)
