@@ -18,8 +18,6 @@ team_avg_wkbb <- sp_logs %>%
   group_by(team, year) %>% 
   summarise(team_avg_wkbb = weighted.mean(`k-bb%`, innings_pitched)) 
 
-summary(team_avg_wkbb$team_avg_wkbb)
-
 #join this to the sp logs and make the adjustment
 sp_logs <- left_join(sp_logs, team_avg_wkbb, by = c('team', 'year'))
 
@@ -181,12 +179,12 @@ results <- as.data.frame(elo_mod)
 #logloss
 MLmetrics::LogLoss(results$p.A, results$wins.A)
 
-rank.teams(elo_mod_2)
-final.elos(elo_mod_2)
-summary(elo_mod_2)
+rank.teams(elo_mod)
+final.elos(elo_mod)
+summary(elo_mod)
 
-#ml accuracy of model -> about 56.5%
-(7777+2305) / (17848) 
+#ml accuracy of model -> about 56.4%
+(7734+2328) / (17848) 
 
 #save model object
 saveRDS(elo_mod, "elo_model.RDS")

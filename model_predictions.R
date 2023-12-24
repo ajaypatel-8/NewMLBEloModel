@@ -5,6 +5,8 @@ library(mlbplotR)
 library(gt)
 library(gtExtras)
 library(oddsapiR)
+library(stats)
+library(elo)
 
 #read in elo model
 elo_model <- readRDS("elo_model.RDS")
@@ -110,7 +112,7 @@ mlb_teams <- mlbplotR::load_mlb_teams() %>% select(team_abbr, team_id_num)
 #mutate team abbreviations
 mlb_teams <- mlb_teams %>% 
   filter(!is.na(team_id_num)) %>% 
-  mutate(      team_abbr = case_when(
+  mutate(team_abbr = case_when(
     team_abbr == "AZ" ~ "ARI",
     team_abbr == "SF" ~ "SFG",
     team_abbr == "WSH" ~ "WSN",
@@ -170,7 +172,7 @@ pitchers <- c(games_today_final$home_id)
 pitchers <- append(pitchers, games_today_final$away_id)
 
 #read in final_game_scores which has the adjustments
-final_game_scores <- read_csv("final_sp_game_scores.csv")
+final_sp_game_scores <- read_csv("final_sp_game_scores.csv")
 
 #make k_bb dataframe for today's games
 today_adj <- data.frame(matrix(ncol = 2))
@@ -233,6 +235,10 @@ games_today_adj1 <- games_today_adj %>%
 today_win_prob <- games_today_adj1 %>%
   ungroup() %>% 
   mutate(home_team_win_prob = predict(elo_model, games_today_adj1))
+
+predict(elo_mod, games_today_adj1)
+
+elo_old <- readRDS('/Users/ajaypatel/Downloads/elo_model.RDS')
 
 #prettify win probs
 teams <- mlbplotR::load_mlb_teams()
