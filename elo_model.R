@@ -3,6 +3,8 @@ library(elo)
 library(readr)
 library(ParBayesianOptimization)
 library(MLmetrics)
+library(scales)
+library(DescTools)
 
 #read in game scores
 game_scores <- read_csv("game_scores.csv")
@@ -14,7 +16,9 @@ sp_logs <- read_csv('sp_logs.csv')
 #we will find team avg k-bb% for the year and adjust relative to that
 team_avg_wkbb <- sp_logs %>% 
   group_by(team, year) %>% 
-  summarise(team_avg_wkbb = mean(weighted_roll_kbb))
+  summarise(team_avg_wkbb = weighted.mean(`k-bb%`, innings_pitched)) 
+
+summary(team_avg_wkbb$team_avg_wkbb)
 
 #join this to the sp logs and make the adjustment
 sp_logs <- left_join(sp_logs, team_avg_wkbb, by = c('team', 'year'))
@@ -26,7 +30,7 @@ sp_logs <- sp_logs %>%
 
 #subset the dataframe to join to game_scores
 sp_logs_small <- sp_logs %>% select(game_date, game_pk,
-                                    year, team, fullName, sp_elo_adj)
+                                    year, team, player_id, fullName, sp_elo_adj)
 
 #rename full name to name
 sp_logs_small <- sp_logs_small %>% 
@@ -61,7 +65,10 @@ game_scores_sp <- left_join(game_scores, sp_logs_small,
 game_scores_sp <- game_scores_sp[!duplicated(game_scores_sp), ]
 
 final_sp_game_scores <- game_scores_sp %>% 
-  filter(!is.na(sp_elo_adj))
+  filter(!is.na(sp_elo_adj)) 
+
+#clip outliers
+final_sp_game_scores$sp_elo_adj <- DescTools::Winsorize(final_sp_game_scores$sp_elo_adj, probs = c(0.01, 0.99))
 
 #in case i need it later
 write_csv(final_sp_game_scores, 'final_sp_game_scores.csv')
@@ -137,7 +144,7 @@ bounds <- list(
   hfa = c(0, 40),
   regress = c(0, 1),
   k_factor = c(0, 40),
-  sp_coeff = c(0, 100)
+  sp_coeff = c(0, 10)
 )
 
 
