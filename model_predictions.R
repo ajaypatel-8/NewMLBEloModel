@@ -7,6 +7,7 @@ library(gtExtras)
 library(oddsapiR)
 library(stats)
 library(elo)
+library(purrr)
 
 #read in elo model
 elo_model <- readRDS("elo_model.RDS")
@@ -15,12 +16,10 @@ elo_model <- readRDS("elo_model.RDS")
 game_scores <- read_csv("game_scores.csv")
 
 #get game_pks for date
-game_pks <- baseballr::get_game_pks_mlb(date = "2023-10-03", level_ids = 1)
-game_pks <- game_pks$game_pk
+game_pks <- baseballr::get_game_pks_mlb(date = "2023-10-03", level_ids = 1)$game_pk
 
 #create empty games df to bind to
-games <- data.frame(matrix(ncol = 3))
-colnames(games) <- c("game_pk","home_team", "away_team")
+games <- data.frame(game_pk = integer(), home_team = character(), away_team = character(), stringsAsFactors = FALSE)
 
 for (game_pk in game_pks) {
   print(game_pk)
@@ -59,47 +58,32 @@ for (game_pk in game_pks) {
       )
     )
   
-  games <- rbind(games, game)
+  games <- bind_rows(games, game)
   
 }
 
-#remove empty row
+#remove empty row and duplicates
 games <- games %>%
-  filter(!is.na(home_team)) 
+  filter(!is.na(home_team)) %>% 
+  distinct()
 
-#remove duplicated rows
-games <- games[!duplicated(games), ]
 
 #get the starting pitchers for each game
 #make empty df to bind to
 dummy5 <- baseballr::mlb_probables(413663)
 
-columns5 <- colnames(dummy5)
+today_sp <- data.frame(matrix(ncol = ncol(dummy5)))
+colnames(today_sp) <- colnames(dummy5)
 
-today_sp <- data.frame(matrix(ncol = length(columns5)))
-
-colnames(today_sp) <- columns5
-
-#loop through game pks and get probables
-for(game_pk in game_pks) {
-  
-  flag <- TRUE
+#use purr to get starters
+today_sp <- map_df(game_pks, ~ {
+  cat("Processing game_pk:", .x, "\n")
   
   tryCatch(
-    {  
-      print(game_pk)
-      starters <- baseballr::mlb_probables(game_pk)
-      
-      today_sp <- rbind(today_sp, starters)},
-    
-    error=function(e) {
-      
-      flag <- FALSE
-    }
+    baseballr::mlb_probables(.x),
+    error = function(e) NULL
   )
-  if (!flag) next
-  
-}
+})
 
 #remove empty row
 today_sp <- today_sp %>% 
@@ -107,10 +91,8 @@ today_sp <- today_sp %>%
   select(-game_date, -home_plate_full_name, -home_plate_id)
 
 #load teams in // need to join
-mlb_teams <- mlbplotR::load_mlb_teams() %>% select(team_abbr, team_id_num)
-
-#mutate team abbreviations
-mlb_teams <- mlb_teams %>% 
+mlb_teams <- mlbplotR::load_mlb_teams() %>% select(team_abbr, team_id_num) %>% 
+  #mutate team abbreviations
   filter(!is.na(team_id_num)) %>% 
   mutate(team_abbr = case_when(
     team_abbr == "AZ" ~ "ARI",
@@ -122,19 +104,14 @@ mlb_teams <- mlb_teams %>%
     team_abbr == "CWS" ~ "CHW",
     team_abbr == "LA" ~ "LAD",
     TRUE ~ team_abbr
-  )
+    )
   )
 
-#join to today_sp
-today_sp <- left_join(today_sp, mlb_teams, by = c("team_id" = "team_id_num"))
-
-#drop team name
-today_sp <- today_sp %>% 
+#join to today_sp and drop team name
+today_sp <- left_join(today_sp, mlb_teams, by = c("team_id" = "team_id_num")) %>%
   select(-team, -team_id)
 
-team_abbr <- unique(game_scores$Tm)
-
-team_abbr <- intersect(team_abbr, today_sp$team_abbr)
+team_abbr <- intersect(unique(game_scores$Tm), today_sp$team_abbr)
 
 #pivot wider on game_pks
 today_sp1 <- today_sp %>% 
@@ -175,9 +152,7 @@ pitchers <- append(pitchers, games_today_final$away_id)
 final_sp_game_scores <- read_csv("final_sp_game_scores.csv")
 
 #make k_bb dataframe for today's games
-today_adj <- data.frame(matrix(ncol = 2))
-
-colnames(today_adj) <-c("player_id", "sp_elo_adj")
+today_adj <- data.frame(player_id = integer(), sp_elo_adj = numeric(), stringsAsFactors = FALSE)
 
 for(pitcher in pitchers) {
   
@@ -207,12 +182,9 @@ for(pitcher in pitchers) {
 
 #remove row of na's
 today_adj <- today_adj %>% 
-  filter(!is.na(player_id))
-
-
-#remove duplicated rows
-today_adj <- today_adj[!duplicated(today_adj), ]
-
+  filter(!is.na(player_id)) %>% 
+  #remove duplicated rows
+  distinct()
 
 #join adj to today's games // home then away
 games_today_adj <- left_join(games_today_final, today_adj, by = c("home_id" = "player_id"))
@@ -229,16 +201,12 @@ games_today_adj <- games_today_adj %>%
   rename("sp_elo_adj_A" = "sp_elo_adj")
 
 games_today_adj1 <- games_today_adj %>% 
-  select(game_pk, home_team, away_team, home_sp, away_sp, sp_elo_adj_H, sp_elo_adj_A)
+  select(game_pk, home_team, away_team, home_sp, home_id, away_sp, away_id, sp_elo_adj_H, sp_elo_adj_A)
 
 #get probabilities
 today_win_prob <- games_today_adj1 %>%
   ungroup() %>% 
   mutate(home_team_win_prob = predict(elo_model, games_today_adj1))
-
-predict(elo_mod, games_today_adj1)
-
-elo_old <- readRDS('/Users/ajaypatel/Downloads/elo_model.RDS')
 
 #prettify win probs
 teams <- mlbplotR::load_mlb_teams()
@@ -309,6 +277,7 @@ table <- today_games_vegas %>%
   arrange(desc(home_team_win_prob)) %>% 
   gt() %>% 
   mlbplotR::gt_fmt_mlb_dot_logo(columns = contains("team_abbr")) %>% 
+  mlbplotR::gt_fmt_mlb_dot_headshot(columns = c("home_id", "away_id")) %>% 
   gt_theme_538() %>% 
   cols_label(
     home_team_abbr = "Home Team",
@@ -318,7 +287,9 @@ table <- today_games_vegas %>%
     sp_elo_adj_H = "Home SP Elo Adj",
     sp_elo_adj_A = "Away SP Elo Adj",
     home_team_win_prob = "Home Team Win Prob",
-    vegas_wp = "Vegas Win Prob"
+    vegas_wp = "Vegas Win Prob",
+    home_id = '',
+    away_id = ''
   ) %>% 
   fmt_number(columns = c(sp_elo_adj_H, sp_elo_adj_A)) %>% 
   fmt_percent(columns = c(home_team_win_prob, vegas_wp), decimals = 0) %>% 
@@ -330,6 +301,8 @@ table <- today_games_vegas %>%
   tab_footnote(
     footnote = "SP Elo Adjustments Are Relative To Team, Not Pitcher To Pitcher",
     locations = cells_column_labels(columns = c(sp_elo_adj_H, sp_elo_adj_A))
-  )
+  ) %>% 
+  cols_move(columns = "sp_elo_adj_H", after = "home_id") 
 
+#save the predictions table
 gtsave(table, "predictions.png", vwidth = 900, vheight = 900)
